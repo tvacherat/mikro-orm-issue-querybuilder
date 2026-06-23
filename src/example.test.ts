@@ -1,34 +1,45 @@
-import 'reflect-metadata';
-import { Entity, PrimaryKey, Property, ReflectMetadataProvider } from '@mikro-orm/decorators/legacy';
-import { MikroORM } from '@mikro-orm/sqlite';
+import {
+  Entity,
+  ManyToOne,
+  PrimaryKey,
+  ReflectMetadataProvider,
+} from "@mikro-orm/decorators/legacy";
+import { MikroORM } from "@mikro-orm/sqlite";
+import "reflect-metadata";
+
+@Entity()
+class Account {
+  @PrimaryKey()
+  id!: number;
+}
 
 @Entity()
 class User {
-
   @PrimaryKey()
   id!: number;
 
-  @Property()
-  name: string;
+  @ManyToOne(() => Account, {
+    deleteRule: "cascade",
+    nullable: true,
+  })
+  account!: Account | null;
 
-  @Property({ unique: true })
-  email: string;
-
-  constructor(name: string, email: string) {
-    this.name = name;
-    this.email = email;
-  }
-
+  @ManyToOne(() => Account, {
+    deleteRule: "cascade",
+    nullable: true,
+    mapToPk: true,
+  })
+  accountMap!: string | null;
 }
 
 let orm: MikroORM;
 
 beforeAll(async () => {
   orm = await MikroORM.init({
-    dbName: ':memory:',
-    entities: [User],
+    dbName: ":memory:",
+    entities: [Account, User],
     metadataProvider: ReflectMetadataProvider,
-    debug: ['query', 'query-params'],
+    debug: ["query", "query-params"],
     allowGlobalContext: true, // only for testing
   });
   await orm.schema.refresh();
@@ -38,17 +49,12 @@ afterAll(async () => {
   await orm.close(true);
 });
 
-test('basic CRUD example', async () => {
-  orm.em.create(User, { name: 'Foo', email: 'foo' });
-  await orm.em.flush();
-  orm.em.clear();
-
-  const user = await orm.em.findOneOrFail(User, { email: 'foo' });
-  expect(user.name).toBe('Foo');
-  user.name = 'Bar';
-  orm.em.remove(user);
-  await orm.em.flush();
-
-  const count = await orm.em.count(User, { email: 'foo' });
-  expect(count).toBe(0);
+test("basic CRUD example", async () => {
+  // Works fine
+  orm.em
+    .createQueryBuilder(User, "u")
+    .join("u.account", "a")
+    .join("accountMap", "a") // ts(2729) No overload matches this call...
+    .select("a.id")
+    .getResultList();
 });
